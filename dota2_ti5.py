@@ -35,7 +35,7 @@ match_ids_details_fetched = list(ti5_match_details.distinct('match_id'))
 match_ids = list(set(all_match_ids_mongo) - set(match_ids_details_fetched))
 
 # set api key
-api.set_api_key("06A0619C384CFA31B4D956A805743BEF")
+api.set_api_key("SECRET API KEY")
 # fetch all ti5 matches till date (league id - 2733)
 # ti5_matches = match_history.latest_matches(league_id=2733)
 # collect all the match ids
