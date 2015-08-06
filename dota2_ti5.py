@@ -29,17 +29,21 @@ db.authenticate('dota2', 'dota2')
 # get all match ids for ti5 present in the database
 ti5_matches_mongo = db.ti5_matches
 ti5_match_details = db.ti5_match_details
+# collect all the match ids
 all_match_ids_mongo = list(ti5_matches_mongo.distinct('match_id'))
-match_ids_details_fetched = list(ti5_match_details.distinct('match_id'))
-# Match ids for which we need to fetch details
-match_ids = list(set(all_match_ids_mongo) - set(match_ids_details_fetched))
-
 # set api key
 api.set_api_key("SECRET API KEY")
 # fetch all ti5 matches till date (league id - 2733)
-# ti5_matches = match_history.latest_matches(league_id=2733)
-# collect all the match ids
-# all_match_ids = set(x['match_id'] for x in ti5_matches['matches'])
+ti5_matches = match_history.latest_matches(league_id=2733)
+for match in ti5_matches['matches']:
+    if not match['match_id'] in all_match_ids_mongo:
+        ti5_matches_mongo.insert(match)
+# recollect all the match ids
+all_match_ids_mongo = list(ti5_matches_mongo.distinct('match_id'))
+match_ids_details_fetched = list(ti5_match_details.distinct('match_id'))
+
+# Match ids for which we need to fetch details
+match_ids = list(set(all_match_ids_mongo) - set(match_ids_details_fetched))
 
 # fetch existing match details from mongo
 all_match_details = {}
@@ -70,6 +74,10 @@ while match_ids:
         match_ids.remove(match_id)
     iteration += 1
 
+for match in all_match_details:
+    if not match in match_ids_details_fetched:
+        ti5_match_details.insert(all_match_details[match])
+
 # fetch all the match times (local time, local timezone)
 match_times = [v['start_time'] for k,v in all_match_details.items()]
 print(ctime(min(match_times)), "to", ctime(max(match_times)))
@@ -78,24 +86,27 @@ print(ctime(min(match_times)), "to", ctime(max(match_times)))
 all_teams = {v['dire_team_id']:v['dire_name'] for k,v in all_match_details.items()}
 all_teams.update({v['radiant_team_id']:v['radiant_name'] for k,v in all_match_details.items()})
 
-# match time - 1438013558 corresponds to 1st group stage match (july 27th)
-group_stage_match_details = {
+# match time - 1438013558 & 1438315842 corresponds to 1st & last
+# group stage matches (july 27th, july 31st)
+# group stage - 1438315842 >= start_time >= 1438013558
+# main event  - 1438315842 <  start_time
+match_details_to_consider = {
     k:v for k,v in all_match_details.items()
-        if v['start_time'] >= 1438013558
+        if v['start_time'] >= 1438013558 # group stage onwards
 }
 
 # fetch team ids and team names of all qualified teams (16)
 teams = {
-    v['dire_team_id']:v['dire_name'] for k,v in group_stage_match_details.items()
+    v['dire_team_id']:v['dire_name'] for k,v in match_details_to_consider.items()
 }
 teams.update({
-    v['radiant_team_id']:v['radiant_name'] for k,v in group_stage_match_details.items()
+    v['radiant_team_id']:v['radiant_name'] for k,v in match_details_to_consider.items()
 })
 
 # general team-match level stats
 team_match_stats = []
-for match_id in group_stage_match_details:
-    cur_match = group_stage_match_details[match_id]
+for match_id in match_details_to_consider:
+    cur_match = match_details_to_consider[match_id]
     team_match_stats.append([
         cur_match['radiant_team_id'], # team id
         cur_match['radiant_name'],    # team name
